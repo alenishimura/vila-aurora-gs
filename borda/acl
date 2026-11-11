@@ -1,0 +1,11 @@
+# menor privilegio: cada dispositivo so publica no proprio topico de telemetria
+# e so le o proprio topico de comando. %u = CN do certificado
+pattern write vilaaurora/%u/telemetria
+pattern read vilaaurora/%u/comando
+
+# o agente da borda precisa ver tudo do espaco
+user borda-escola
+topic readwrite vilaaurora/#
+
+user borda-ubs
+topic readwrite vilaaurora/#

@@ -1,0 +1,13 @@
+# copiar esse arquivo pra dentro de wazuh-docker/single-node/ (o preparar_wazuh.sh ja faz)
+# ele so acrescenta: os logs do lab, nossas regras e o fuso horario
+services:
+  wazuh.manager:
+    environment:
+      - TZ=America/Sao_Paulo
+    volumes:
+      - ${VILA_LOGS}:/vila-logs:ro
+      - ./vila/vila_aurora_rules.xml:/var/ossec/etc/rules/vila_aurora_rules.xml:ro
+      - ./vila/wazuh_manager.conf:/wazuh-config-mount/etc/ossec.conf
+  wazuh.dashboard:
+    ports: !override
+      - "127.0.0.1:5601:5601"

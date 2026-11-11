@@ -1,0 +1,16 @@
+$ORIGIN vilaaurora.lab.
+$TTL 3600
+@       IN SOA ns1.vilaaurora.lab. ti.vilaaurora.lab. ( 2026110901 3600 600 604800 300 )
+@       IN NS  ns1.vilaaurora.lab.
+ns1     IN A   127.0.0.1
+@       IN MX  10 mail.vilaaurora.lab.
+mail    IN A   127.0.0.1
+
+; SPF: so o servidor de e-mail da propria rede pode mandar em nome do dominio. o resto falha (-all)
+@       IN TXT "v=spf1 mx ip4:127.0.0.1 -all"
+
+; DKIM: chave publica do seletor "lab2026" (a privada fica so no servidor de e-mail)
+lab2026._domainkey IN TXT ( "v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyd9ify6E1VzYOUBwLm7k8cRGQbXcibbIMBheqBpyk+vdP6pMsBPJQ+SOlJbEE6KU4TU/DRG4zSQ4bvFVKRSnHwuHYXAtePZC1PvEInH+DtGfu310kjBK6I6gbT0VbYrCUG5iJnmSSJGj4EhxrKC2/vae8S6jiQrq4gbqVMtr5JQhFT67uhzEtL9qOaGN" "zTqe9hU0GPP6nNc98U6xGzxFlR/FZiD5ZOmMVXcIuwiUerCR8B848mdJGy8h+zPfq6p8UEurKhauOnTJ1+h6WYh87xyZcyt1jRqv0JOcKb4jSvCPHe67t3/Slnk/BjDZ40uvnZETwl3yInBfxgY9dE7vqQIDAQAB" )
+
+; DMARC: politica quarantine (minimo pedido no RT-10), 100% das mensagens, relatorios pra ti@
+_dmarc  IN TXT "v=DMARC1; p=quarantine; pct=100; adkim=s; aspf=s; rua=mailto:dmarc@vilaaurora.lab; fo=1"

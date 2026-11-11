@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block titulo %}Comandos{% endblock %}
+{% block conteudo %}
+<h1>Comandos para os equipamentos</h1>
+{% if msg %}<p class="aviso ok" role="status">{{ msg }}</p>{% endif %}
+
+{% if perfil in ('tecnico', 'coordenacao') %}
+<form method="post" class="cartao">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label for="dispositivo">Equipamento</label>
+  <select id="dispositivo" name="dispositivo">
+    {% for d in acoes %}<option value="{{ d }}">{{ d }}</option>{% endfor %}
+  </select>
+  <label for="acao">Ação</label>
+  <select id="acao" name="acao">
+    <option value="ligar">ligar bomba</option>
+    <option value="desligar">desligar bomba (precisa aprovação)</option>
+    <option value="modo_seguro">colocar bomba em modo seguro</option>
+    <option value="sair_modo_seguro">tirar bomba do modo seguro</option>
+    <option value="travar">travar fechadura</option>
+    <option value="liberar_todas">liberar todas as portas (precisa aprovação)</option>
+  </select>
+  <button type="submit">Enviar comando</button>
+  <p class="dica">Comandos fora do horário 6h às 22h só passam com aprovação. O nó local também confere.</p>
+</form>
+{% endif %}
+
+<table>
+  <caption>Últimos comandos</caption>
+  <thead><tr><th scope="col">#</th><th scope="col">Quando</th><th scope="col">Equipamento</th><th scope="col">Ação</th><th scope="col">Pedido por</th><th scope="col">Situação</th><th scope="col">Aprovação</th></tr></thead>
+  <tbody>
+  {% for c in lista %}
+    <tr>
+      <td>{{ c.id }}</td><td>{{ c.criado_em.strftime('%d/%m %H:%M') }}</td><td>{{ c.dispositivo }}</td>
+      <td>{{ c.acao }}{% if c.alto_impacto %} <strong>(alto impacto)</strong>{% endif %}</td>
+      <td>{{ c.solicitado_por }}</td>
+      <td>{{ c.status }}{% if c.motivo %} ({{ c.motivo }}){% endif %}</td>
+      <td>
+        {% if c.status == 'aguardando_aprovacao' and perfil == 'coordenacao' %}
+        <form method="post" action="{{ url_for('decidir_comando', cid=c.id) }}">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <label for="motivo{{ c.id }}">Motivo</label>
+          <input id="motivo{{ c.id }}" name="motivo" maxlength="200">
+          <button name="decisao" value="aprovar">Aprovar</button>
+          <button name="decisao" value="negar">Negar</button>
+        </form>
+        {% else %}{{ c.aprovado_por or '-' }}{% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

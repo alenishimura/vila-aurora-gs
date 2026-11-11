@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}Painel{% endblock %} - Rede Vila Aurora</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='estilo.css') }}">
+  <script src="{{ url_for('static', filename='acessibilidade.js') }}" defer></script>
+</head>
+<body>
+  <a class="pular" href="#conteudo">Pular para o conteúdo</a>
+  <header>
+    <p class="marca">Rede Vila Aurora · Painel de supervisão</p>
+    {% if usuario %}
+    <nav aria-label="Menu principal">
+      <ul>
+        <li><a href="{{ url_for('inicio') }}">Início</a></li>
+        <li><a href="{{ url_for('comandos') }}">Comandos</a></li>
+        <li><a href="{{ url_for('agendamento') }}">Bomba da escola</a></li>
+        {% if perfil in ('coordenacao', 'auditor') %}
+        <li><a href="{{ url_for('acessos') }}">Histórico de acessos</a></li>
+        <li><a href="{{ url_for('respostas') }}">Respostas a incidentes</a></li>
+        <li><a href="{{ url_for('auditoria') }}">Auditoria</a></li>
+        {% endif %}
+        <li><a href="{{ url_for('sair') }}">Sair ({{ usuario }}, {{ perfil }})</a></li>
+      </ul>
+    </nav>
+    {% endif %}
+    <div class="ferramentas">
+      <button type="button" id="btn-texto">Aumentar texto</button>
+      <button type="button" id="btn-contraste">Alto contraste</button>
+    </div>
+  </header>
+  <main id="conteudo" tabindex="-1">
+    {% block conteudo %}{% endblock %}
+  </main>
+</body>
+</html>

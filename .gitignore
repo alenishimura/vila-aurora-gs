@@ -1,0 +1,17 @@
+# segredos (o professor desconta se tiver segredo no repo)
+.env
+segredos/
+pki/ca/
+pki/emitidos/
+pki/publico/
+vpn/gerado/
+nuvem/db/init/04_operadores.sql
+phishing/dns/dkim_privada.pem
+
+# gerados em execucao
+logs/
+evidencias/
+__pycache__/
+*.pyc
+.venv/
+ia/dados/

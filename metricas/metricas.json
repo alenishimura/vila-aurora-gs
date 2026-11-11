@@ -1,0 +1,56 @@
+{
+  "gerado_em": "2026-11-11T01:18:53+00:00",
+  "disponibilidade": {
+    "borda-ubs": {
+      "janela_seg": 111447.3,
+      "offline_seg": 1903.3,
+      "quedas": 1,
+      "disponibilidade_pct": 98.292
+    },
+    "borda-escola": {
+      "janela_seg": 111421.6,
+      "offline_seg": 1902.0,
+      "quedas": 1,
+      "disponibilidade_pct": 98.293
+    }
+  },
+  "MTTD": {
+    "n": 4,
+    "media_seg": 0.283,
+    "mediana_seg": 0.215,
+    "max_seg": 0.691
+  },
+  "MTTR": {
+    "n": 18,
+    "media_seg": 98.705,
+    "mediana_seg": 98.707,
+    "max_seg": 196.372
+  },
+  "operacao_autonoma_sem_internet": {
+    "maior_intervalo_seg": 1903.3,
+    "borda": "borda-ubs",
+    "offline_seg": 1903.3,
+    "pendentes_no_buffer": 706
+  },
+  "reconciliacao": {
+    "enviados_pela_borda": 44867,
+    "gravados_no_banco": 44866,
+    "duplicados_descartados": 1,
+    "perda_estimada": 0
+  },
+  "recursos_borda": {
+    "cpu_proc_pct": {
+      "media": 0.0,
+      "max": 0.0
+    },
+    "memoria_mb": {
+      "media": 40.1,
+      "max": 42.9
+    },
+    "banda_total_kb": 6390.4
+  },
+  "consumo_docker_agora": [
+    "borda-ubs;0.03%;24.32MiB / 15.18GiB",
+    "borda-escola;0.03%;33.91MiB / 15.18GiB"
+  ]
+}

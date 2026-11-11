@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block titulo %}Respostas a incidentes{% endblock %}
+{% block conteudo %}
+<h1>Respostas a incidentes esperando decisão</h1>
+<p>Ações de baixo risco (isolar sensor, bloquear IP, encerrar sessão de VPN) são feitas automaticamente.
+As de alto impacto ficam aqui até alguém da coordenação decidir.</p>
+<table>
+  <caption>Pedidos de resposta</caption>
+  <thead><tr><th scope="col">#</th><th scope="col">Quando</th><th scope="col">Alerta</th><th scope="col">Ação sugerida</th><th scope="col">Alvo</th><th scope="col">Por quê</th><th scope="col">Situação</th></tr></thead>
+  <tbody>
+  {% for r in lista %}
+    <tr>
+      <td>{{ r.id }}</td><td>{{ r.criado_em.strftime('%d/%m %H:%M') }}</td><td>{{ r.alerta }}</td>
+      <td><strong>{{ r.acao }}</strong></td><td>{{ r.alvo }}</td><td>{{ r.justificativa }}</td>
+      <td>
+        {% if r.status == 'aguardando' and perfil == 'coordenacao' %}
+        <form method="post">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <input type="hidden" name="id" value="{{ r.id }}">
+          <button name="decisao" value="aprovar">Aprovar</button>
+          <button name="decisao" value="negar">Negar</button>
+        </form>
+        {% else %}{{ r.status }}{% if r.decidido_por %} por {{ r.decidido_por }}{% endif %}{% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

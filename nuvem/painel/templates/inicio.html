@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block titulo %}Início{% endblock %}
+{% block conteudo %}
+<h1>Situação agora</h1>
+
+{% if pendentes %}
+<p class="aviso atencao" role="status">⚠ Existem {{ pendentes }} pedido(s) esperando aprovação da coordenação.</p>
+{% endif %}
+
+<section aria-labelledby="t-alertas">
+  <h2 id="t-alertas">Alertas abertos</h2>
+  {% if not alertas %}
+    <p class="aviso ok">✔ Nenhum alerta aberto.</p>
+  {% else %}
+  <table>
+    <caption>Alertas que ainda ninguém confirmou</caption>
+    <thead><tr><th scope="col">Quando</th><th scope="col">Local</th><th scope="col">O que aconteceu</th><th scope="col">Origem</th><th scope="col">Ação</th></tr></thead>
+    <tbody>
+    {% for a in alertas %}
+      <tr>
+        <td>{{ a.ts.strftime('%d/%m %H:%M') }}</td>
+        <td>{{ a.espaco }}</td>
+        <td><strong>⚠ {{ a.mensagem }}</strong></td>
+        <td>{{ 'nó local' if a.origem == 'regra_local' else 'nuvem' }}</td>
+        <td>
+          {% if perfil != 'auditor' %}
+          <form method="post" action="{{ url_for('reconhecer', aid=a.id) }}">
+            <input type="hidden" name="csrf" value="{{ csrf }}">
+            <button type="submit">Estou vendo</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</section>
+
+<section aria-labelledby="t-disp">
+  <h2 id="t-disp">Equipamentos</h2>
+  <table>
+    <caption>Última leitura de cada equipamento</caption>
+    <thead><tr><th scope="col">Equipamento</th><th scope="col">Local</th><th scope="col">Leitura</th><th scope="col">Recebido há</th><th scope="col">Conexão</th></tr></thead>
+    <tbody>
+    {% for u in ultimos %}
+      <tr>
+        <td>{{ u.dispositivo }}</td>
+        <td>{{ u.espaco }}</td>
+        <td>
+          {% set d = u.dados %}
+          {% if u.tipo == 'camara_fria' %}
+            {% if d.temperatura_c > 8 or d.temperatura_c < 2 %}<span class="ruim">⚠ {{ d.temperatura_c }} °C (fora da faixa 2 a 8)</span>
+            {% else %}<span class="bom">✔ {{ d.temperatura_c }} °C</span>{% endif %}
+          {% elif u.tipo == 'nivel' %}
+            {% if d.nivel_pct < 25 %}<span class="ruim">⚠ caixa d'água em {{ d.nivel_pct }}%</span>
+            {% else %}<span class="bom">✔ caixa d'água em {{ d.nivel_pct }}%</span>{% endif %}
+          {% elif u.tipo == 'bomba' %}
+            Bomba {{ 'ligada' if d.ligada else 'desligada' }}{% if d.modo_seguro %} (modo seguro){% endif %}
+          {% elif u.tipo == 'energia' %}
+            Bateria {{ d.bateria_pct }}%
+          {% else %}
+            {{ d.evento or '-' }}
+          {% endif %}
+        </td>
+        <td>{{ u.atraso_min }} min</td>
+        <td>{% if u.atraso_min > 2 %}<span class="ruim">⚠ sem dados recentes (o nó local continua funcionando)</span>{% else %}{{ 'fibra' if u.via == 'principal' else '4G' }}{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

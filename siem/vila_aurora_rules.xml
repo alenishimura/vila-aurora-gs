@@ -1,0 +1,154 @@
+<!-- regras do Wazuh pra Rede Vila Aurora (RT-13)
+     os logs dos servicos sao JSON, entao o decoder json padrao do Wazuh ja separa os campos
+     testar com: docker exec -it single-node-wazuh.manager-1 /var/ossec/bin/wazuh-logtest -->
+
+<group name="vila_aurora,">
+
+  <!-- base: qualquer evento json dos nossos servicos -->
+  <rule id="100100" level="0">
+    <decoded_as>json</decoded_as>
+    <field name="servico">\.+</field>
+    <description>Vila Aurora: evento do servico $(servico)</description>
+  </rule>
+
+  <!-- ===== (a) login VPN anomalo ===== -->
+  <rule id="100110" level="3">
+    <if_sid>100100</if_sid>
+    <field name="evento">^vpn_handshake$</field>
+    <description>VPN: nova sessao do peer $(peer) a partir de $(endpoint_ip)</description>
+    <group>vpn,</group>
+  </rule>
+
+  <rule id="100111" level="10">
+    <if_sid>100110</if_sid>
+    <field name="ip_novo">^true$</field>
+    <description>VPN ANOMALA: peer $(peer) conectou de um IP nunca visto ($(endpoint_ip))</description>
+    <mitre><id>T1133</id><id>T1078</id></mitre>
+    <group>vpn,vila_rt13a,</group>
+  </rule>
+
+  <!-- o manager precisa estar com TZ=America/Sao_Paulo pra esse horario fazer sentido -->
+  <rule id="100112" level="10">
+    <if_sid>100110</if_sid>
+    <field name="peer">^operador</field>
+    <time>11 pm - 6 am</time>
+    <description>VPN ANOMALA: acesso administrativo de madrugada ($(peer) de $(endpoint_ip))</description>
+    <mitre><id>T1133</id></mitre>
+    <group>vpn,vila_rt13a,</group>
+  </rule>
+
+  <rule id="100113" level="12">
+    <if_sid>100110</if_sid>
+    <field name="peer">^desconhecido$</field>
+    <description>VPN ANOMALA: chave publica desconhecida tentando sessao</description>
+    <group>vpn,vila_rt13a,</group>
+  </rule>
+
+  <!-- ===== (b) SQL injection ===== -->
+  <rule id="100120" level="12">
+    <if_sid>100100</if_sid>
+    <field name="busca" type="pcre2">(?i)(union\s+(all\s+)?select|'\s*(or|and)\s+\S+\s*=|pg_sleep|;\s*(update|drop|insert|delete)\b|'\s*--|information_schema)</field>
+    <description>SQL INJECTION: padrao de ataque na busca do $(servico) vindo de $(ip)</description>
+    <mitre><id>T1190</id></mitre>
+    <group>web,sqli,vila_rt13b,</group>
+  </rule>
+
+  <rule id="100121" level="8">
+    <if_sid>100100</if_sid>
+    <field name="evento">^erro_sql$</field>
+    <description>SQL INJECTION (provavel): erro de sintaxe SQL gerado por entrada do usuario no $(servico)</description>
+    <mitre><id>T1190</id></mitre>
+    <group>web,sqli,vila_rt13b,</group>
+  </rule>
+
+  <rule id="100122" level="12">
+    <decoded_as>json</decoded_as>
+    <match type="pcre2">"ruleId":"942\d+"</match>
+    <description>SQL INJECTION bloqueado pelo WAF (OWASP CRS 942xxx)</description>
+    <mitre><id>T1190</id></mitre>
+    <group>web,sqli,waf,vila_rt13b,</group>
+  </rule>
+
+  <!-- ===== (c) dispositivo sem certificado valido ===== -->
+  <rule id="100130" level="10">
+    <match>did not return a certificate|certificate verify failed|certificate revoked|bad certificate</match>
+    <description>DISPOSITIVO SEM CERTIFICADO VALIDO tentando conectar no broker MQTT da borda</description>
+    <mitre><id>T0848</id></mitre>
+    <group>iot,mtls,vila_rt13c,</group>
+  </rule>
+
+  <rule id="100131" level="10">
+    <if_sid>100100</if_sid>
+    <field name="servico">^nuvem-gw$</field>
+    <field name="status">^400$</field>
+    <field name="verificacao_cert" negate="yes">^SUCCESS$</field>
+    <description>DISPOSITIVO SEM CERTIFICADO VALIDO no ingest da nuvem ($(cliente_ip), $(verificacao_cert))</description>
+    <group>iot,mtls,vila_rt13c,</group>
+  </rule>
+
+  <rule id="100132" level="5">
+    <if_sid>100100</if_sid>
+    <field name="evento">^certificado_revogado$</field>
+    <description>PKI: certificado do dispositivo $(cn) revogado ($(motivo))</description>
+    <group>pki,</group>
+  </rule>
+
+  <!-- ===== (d) atuador fora do horario/perfil ===== -->
+  <rule id="100140" level="10">
+    <if_sid>100100</if_sid>
+    <field name="evento">^comando_rejeitado$</field>
+    <description>ATUADOR: comando rejeitado pela borda $(espaco) ($(motivo)) dispositivo $(dispositivo)</description>
+    <mitre><id>T0855</id></mitre>
+    <group>ics,vila_rt13d,</group>
+  </rule>
+
+  <rule id="100141" level="12">
+    <if_sid>100100</if_sid>
+    <field name="evento">^agendamento_rejeitado$</field>
+    <description>ATUADOR: agenda da bomba adulterada recebida da nuvem e rejeitada pela borda $(espaco)</description>
+    <mitre><id>T0836</id></mitre>
+    <group>ics,vila_rt13d,</group>
+  </rule>
+
+  <!-- log do postgres (jsonlog): UPDATE na agenda por usuario que nao e o app do painel -->
+  <rule id="100142" level="12">
+    <decoded_as>json</decoded_as>
+    <field name="message" type="pcre2">(?i)update\s+agendamento_bomba</field>
+    <field name="user" negate="yes">^painel_app$</field>
+    <description>ATUADOR: agenda da bomba alterada direto no banco pelo usuario $(user)</description>
+    <mitre><id>T0836</id></mitre>
+    <group>ics,database,vila_rt13d,</group>
+  </rule>
+
+  <!-- alarmes operacionais locais (nao sao ataque, mas o SOC acompanha) -->
+  <rule id="100150" level="7">
+    <if_sid>100100</if_sid>
+    <field name="evento">^alerta_local$</field>
+    <description>Borda $(espaco): $(mensagem)</description>
+    <group>operacao,</group>
+  </rule>
+
+  <rule id="100151" level="6">
+    <if_sid>100100</if_sid>
+    <field name="evento">^link_wan_caiu$</field>
+    <description>Borda $(espaco) perdeu o link com a nuvem (via $(via)), operando em modo autonomo</description>
+    <group>operacao,resiliencia,</group>
+  </rule>
+
+  <!-- tentativa de login no painel -->
+  <rule id="100160" level="5">
+    <if_sid>100100</if_sid>
+    <field name="evento">^login_falha$|^mfa_falha$</field>
+    <description>Painel: falha de autenticacao ($(evento)) para $(usuario_tentado)</description>
+    <group>authentication_failed,</group>
+  </rule>
+
+  <rule id="100161" level="10" frequency="5" timeframe="120">
+    <if_matched_sid>100160</if_matched_sid>
+    <same_field>ip</same_field>
+    <description>Painel: varias falhas de login seguidas do mesmo IP (possivel uso de senha roubada)</description>
+    <mitre><id>T1110</id></mitre>
+    <group>authentication_failures,</group>
+  </rule>
+
+</group>

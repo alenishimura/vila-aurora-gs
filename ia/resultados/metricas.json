@@ -1,0 +1,105 @@
+[
+  {
+    "sensor": "camara_fria",
+    "leituras_teste": 12096,
+    "anomalias_reais": 850,
+    "modelos": {
+      "isolation_forest": {
+        "precisao": 0.856,
+        "revocacao": 0.608,
+        "f1": 0.711,
+        "taxa_falso_positivo": 0.0077,
+        "vp": 517,
+        "fp": 87,
+        "fn": 333,
+        "vn": 11159,
+        "revocacao_por_tipo": {
+          "deriva_lenta": 0.778,
+          "porta_aberta": 0.892,
+          "sensor_travado": 0.0
+        }
+      },
+      "lof": {
+        "precisao": 0.571,
+        "revocacao": 0.894,
+        "f1": 0.697,
+        "taxa_falso_positivo": 0.0509,
+        "vp": 760,
+        "fp": 572,
+        "fn": 90,
+        "vn": 10674,
+        "revocacao_por_tipo": {
+          "deriva_lenta": 0.851,
+          "porta_aberta": 0.915,
+          "sensor_travado": 0.972
+        }
+      },
+      "hibrido_if_regra": {
+        "precisao": 0.883,
+        "revocacao": 0.828,
+        "f1": 0.855,
+        "taxa_falso_positivo": 0.0083,
+        "vp": 704,
+        "fp": 93,
+        "fn": 146,
+        "vn": 11153,
+        "revocacao_por_tipo": {
+          "deriva_lenta": 0.778,
+          "porta_aberta": 0.892,
+          "sensor_travado": 0.886
+        }
+      }
+    },
+    "melhor_modelo": "hibrido_if_regra"
+  },
+  {
+    "sensor": "nivel",
+    "leituras_teste": 12096,
+    "anomalias_reais": 1831,
+    "modelos": {
+      "isolation_forest": {
+        "precisao": 0.61,
+        "revocacao": 0.123,
+        "f1": 0.205,
+        "taxa_falso_positivo": 0.014,
+        "vp": 225,
+        "fp": 144,
+        "fn": 1606,
+        "vn": 10121,
+        "revocacao_por_tipo": {
+          "bomba_bloqueada": 0.142,
+          "vazamento": 0.021
+        }
+      },
+      "lof": {
+        "precisao": 0.341,
+        "revocacao": 0.868,
+        "f1": 0.49,
+        "taxa_falso_positivo": 0.2989,
+        "vp": 1590,
+        "fp": 3068,
+        "fn": 241,
+        "vn": 7197,
+        "revocacao_por_tipo": {
+          "bomba_bloqueada": 0.845,
+          "vazamento": 0.993
+        }
+      },
+      "hibrido_if_regra": {
+        "precisao": 0.61,
+        "revocacao": 0.123,
+        "f1": 0.205,
+        "taxa_falso_positivo": 0.014,
+        "vp": 225,
+        "fp": 144,
+        "fn": 1606,
+        "vn": 10121,
+        "revocacao_por_tipo": {
+          "bomba_bloqueada": 0.142,
+          "vazamento": 0.021
+        }
+      }
+    },
+    "melhor_modelo": "lof"
+  }
+]

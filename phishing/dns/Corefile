@@ -1,0 +1,5 @@
+vilaaurora.lab:53 {
+    file /etc/coredns/vilaaurora.lab.zone
+    log
+    errors
+}

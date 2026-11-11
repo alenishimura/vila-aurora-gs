@@ -1,0 +1,261 @@
+# Rede Comunitaria Vila Aurora - laboratorio da GS 2026.2
+# camadas: campo (sensores) -> borda (broker + agente) -> VPN -> nuvem (gw, coletor, painel, banco) -> supervisao
+name: vila-aurora
+
+x-sensor: &sensor
+  build: ./campo
+  image: vila/sensor:lab
+  restart: unless-stopped
+  environment: &sensor_env
+    INTERVALO: "5"
+
+x-borda: &borda
+  build: ./borda
+  image: vila/borda:lab
+  restart: unless-stopped
+  cap_add: [NET_ADMIN]
+
+networks:
+  # cada espaco tem a sua rede de dispositivos, isolada (internal = sem saida)
+  iot_escola: { internal: true }
+  iot_ubs: { internal: true }
+  # "internet" entre a borda e a nuvem. so passa o UDP do wireguard
+  wan_fibra: { internal: true }
+  wan_4g: { internal: true }
+  # servicos da nuvem (banco, coletor, painel). ninguem de fora entra direto
+  servicos: { internal: true }
+  # rede dos operadores no centro comunitario (onde fica o navegador)
+  operadores: {}
+  # usada pra publicar a porta do wireguard pro operador remoto e pro teste do atacante
+  internet_lab: {}
+
+volumes:
+  dbdata:
+  dados_escola:
+  dados_ubs:
+
+services:
+
+  # ---------------- nuvem ----------------
+  db:
+    image: postgres:16-alpine
+    container_name: db
+    restart: unless-stopped
+    env_file: .env
+    command: >
+      postgres -c logging_collector=on -c log_destination=jsonlog
+      -c log_directory=/logs/postgres -c log_filename=postgres.log
+      -c log_statement=mod -c log_connections=on -c log_disconnections=on
+      -c log_timezone=UTC -c log_file_mode=0644
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+      - ./nuvem/db/init:/docker-entrypoint-initdb.d:ro
+      - ./logs:/logs
+    networks: [servicos]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      retries: 20
+
+  coletor:
+    build: ./nuvem/coletor
+    image: vila/coletor:lab
+    container_name: coletor
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      COLETOR_DB_SENHA: ${COLETOR_DB_SENHA}
+    volumes: [./logs:/logs]
+    networks: [servicos]
+    depends_on: { db: { condition: service_healthy } }
+
+  painel:
+    build: ./nuvem/painel
+    image: vila/painel:lab
+    container_name: painel
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      PAINEL_DB_SENHA: ${PAINEL_DB_SENHA}
+      PAINEL_SECRET: ${PAINEL_SECRET}
+    volumes: [./logs:/logs]
+    networks: [servicos]
+    depends_on: { db: { condition: service_healthy } }
+
+  # WAF (ModSecurity + OWASP CRS) na frente do painel: camada extra contra SQLi
+  waf:
+    image: owasp/modsecurity-crs:nginx-alpine
+    container_name: waf
+    restart: unless-stopped
+    environment:
+      BACKEND: http://painel:5000
+      SERVER_NAME: waf
+      NGINX_ALWAYS_TLS_REDIRECT: "on"
+      BLOCKING_PARANOIA: "1"
+      ANOMALY_INBOUND: "5"
+      MODSEC_AUDIT_LOG: /var/log/vila/waf-audit.log
+      MODSEC_AUDIT_LOG_FORMAT: JSON
+      ACCESSLOG: /var/log/vila/waf-acesso.log
+    volumes:
+      - ./pki/emitidos/painel/cert.pem:/etc/nginx/conf/server.crt:ro
+      - ./pki/emitidos/painel/key.pem:/etc/nginx/conf/server.key:ro
+      - ./logs/waf:/var/log/vila
+    ports:
+      - "127.0.0.1:8443:8443"   # so na maquina local (rede dos operadores)
+    networks: [operadores, servicos]
+    depends_on: [painel]
+
+  # gateway: termina a VPN wireguard, faz mTLS do ingest e o firewall entre segmentos
+  nuvem-gw:
+    build: ./nuvem/gw
+    image: vila/gw:lab
+    container_name: nuvem-gw
+    restart: unless-stopped
+    cap_add: [NET_ADMIN]
+    volumes:
+      - ./pki/emitidos/nuvem-gw:/pki:ro
+      - ./pki/publico:/pki-pub:ro
+      - ./vpn/gerado/gw-wg0.conf:/vpn/gw-wg0.conf:ro
+      - ./vpn/gerado/peers.json:/vpn/peers.json:ro
+      - ./logs:/logs
+    ports:
+      - "51820:51820/udp"   # unica porta aberta pra fora. nada administrativo exposto
+    networks:
+      wan_fibra: { aliases: [gw-fibra] }
+      wan_4g: { aliases: [gw-4g] }
+      internet_lab: {}
+      servicos: {}
+    depends_on: [coletor, waf]
+
+  # ---------------- borda ----------------
+  borda-escola:
+    <<: *borda
+    container_name: borda-escola
+    hostname: borda-escola
+    environment:
+      ESPACO: escola
+      WG_GW_PUB: ${WG_GW_PUB}
+      PSEUDO_CHAVE: ${PSEUDO_CHAVE}
+      MODO_LEGADO: ${MODO_LEGADO:-0}
+    volumes:
+      - ./pki/emitidos/borda-escola:/pki:ro
+      - ./pki/publico:/pki-pub:ro
+      - ./vpn/gerado/borda-escola-wg0.conf:/vpn/wg0.conf:ro
+      - ./logs:/logs
+      - dados_escola:/dados
+    networks: [iot_escola, wan_fibra]
+    depends_on: [nuvem-gw]
+
+  # a UBS tem 4G de reserva por causa da camara fria das vacinas (ver doc de arquitetura)
+  borda-ubs:
+    <<: *borda
+    container_name: borda-ubs
+    hostname: borda-ubs
+    environment:
+      ESPACO: ubs
+      WG_GW_PUB: ${WG_GW_PUB}
+      PSEUDO_CHAVE: ${PSEUDO_CHAVE}
+      MODO_LEGADO: ${MODO_LEGADO:-0}
+      ENDPOINT_RESERVA: gw-4g:51820
+    volumes:
+      - ./pki/emitidos/borda-ubs:/pki:ro
+      - ./pki/publico:/pki-pub:ro
+      - ./vpn/gerado/borda-ubs-wg0.conf:/vpn/wg0.conf:ro
+      - ./logs:/logs
+      - dados_ubs:/dados
+    networks: [iot_ubs, wan_fibra, wan_4g]
+    depends_on: [nuvem-gw]
+
+  # ---------------- campo (escola) ----------------
+  escola-nivel-01:
+    <<: *sensor
+    container_name: escola-nivel-01
+    environment: { <<: *sensor_env, DISPOSITIVO: escola-nivel-01, TIPO: nivel, BROKER: borda-escola }
+    volumes: [./pki/emitidos/escola-nivel-01:/pki:ro]
+    networks: [iot_escola]
+    depends_on: [borda-escola]
+
+  escola-bomba-01:
+    <<: *sensor
+    container_name: escola-bomba-01
+    environment: { <<: *sensor_env, DISPOSITIVO: escola-bomba-01, TIPO: bomba, BROKER: borda-escola }
+    volumes: [./pki/emitidos/escola-bomba-01:/pki:ro]
+    networks: [iot_escola]
+    depends_on: [borda-escola]
+
+  escola-fechadura-01:
+    <<: *sensor
+    container_name: escola-fechadura-01
+    environment: { <<: *sensor_env, DISPOSITIVO: escola-fechadura-01, TIPO: fechadura, BROKER: borda-escola }
+    volumes: [./pki/emitidos/escola-fechadura-01:/pki:ro]
+    networks: [iot_escola]
+    depends_on: [borda-escola]
+
+  # ---------------- campo (ubs) ----------------
+  ubs-camarafria-01:
+    <<: *sensor
+    container_name: ubs-camarafria-01
+    environment: { <<: *sensor_env, DISPOSITIVO: ubs-camarafria-01, TIPO: camara_fria, BROKER: borda-ubs }
+    volumes: [./pki/emitidos/ubs-camarafria-01:/pki:ro]
+    networks: [iot_ubs]
+    depends_on: [borda-ubs]
+
+  ubs-energia-01:
+    <<: *sensor
+    container_name: ubs-energia-01
+    environment: { <<: *sensor_env, DISPOSITIVO: ubs-energia-01, TIPO: energia, BROKER: borda-ubs }
+    volumes: [./pki/emitidos/ubs-energia-01:/pki:ro]
+    networks: [iot_ubs]
+    depends_on: [borda-ubs]
+
+  # =========== perfis opcionais ===========
+
+  # sistema antigo, so pra reproduzir o INC-VA-0712 (docker compose --profile incidente up -d)
+  painel-legado:
+    profiles: [incidente]
+    build: ./nuvem/painel_legado
+    image: vila/painel-legado:lab
+    container_name: painel-legado
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      LEGADO_SECRET: ${LEGADO_SECRET}
+    volumes: [./logs:/logs]
+    ports: ["127.0.0.1:8081:5000"]
+    networks: [operadores, servicos]
+    depends_on: { db: { condition: service_healthy } }
+
+  # dispositivo sem certificado tentando entrar no broker da UBS (teste da regra c)
+  intruso-sem-cert:
+    profiles: [testes]
+    image: vila/sensor:lab
+    container_name: intruso-sem-cert
+    environment: { DISPOSITIVO: ubs-camarafria-01, TIPO: camara_fria, BROKER: borda-ubs, SEM_CERT: "1" }
+    volumes: [./pki/publico:/pki:ro]
+    networks: [iot_ubs]
+    restart: "no"
+
+  # phishing simulado (so contas ficticias) + caixa de e-mail falsa + DNS do dominio ficticio
+  gophish:
+    profiles: [phishing]
+    image: gophish/gophish:latest
+    container_name: gophish
+    ports: ["127.0.0.1:3333:3333", "127.0.0.1:8088:80"]
+    networks: [operadores]
+
+  mailhog:
+    profiles: [phishing]
+    image: mailhog/mailhog:latest
+    container_name: mailhog
+    ports: ["127.0.0.1:8025:8025"]
+    networks: [operadores]
+
+  dns:
+    profiles: [phishing]
+    image: coredns/coredns:1.11.3
+    container_name: dns-lab
+    command: ["-conf", "/etc/coredns/Corefile"]
+    volumes: [./phishing/dns:/etc/coredns:ro]
+    ports: ["127.0.0.1:1053:53/udp"]
+    networks: [operadores]

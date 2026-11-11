@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block titulo %}Bomba da escola{% endblock %}
+{% block conteudo %}
+<h1>Agenda da bomba da escola</h1>
+<p>A bomba liga quando a caixa d'água fica abaixo do primeiro valor e desliga quando passa do segundo.
+Mesmo que alguém mude aqui, o nó local nunca deixa a caixa ficar abaixo de 25%.</p>
+{% if erro %}<p class="aviso erro" role="alert">{{ erro }}</p>{% endif %}
+<p>Última alteração: {{ ag.alterado_por }} em {{ ag.alterado_em.strftime('%d/%m/%Y %H:%M') }}</p>
+<form method="post" class="cartao estreito">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label for="nivel_liga">Ligar a bomba quando a caixa estiver abaixo de (%)</label>
+  <input id="nivel_liga" name="nivel_liga" type="number" min="25" max="80" value="{{ ag.nivel_liga }}" {% if perfil not in ('tecnico','coordenacao') %}disabled{% endif %}>
+  <label for="nivel_desliga">Desligar quando passar de (%)</label>
+  <input id="nivel_desliga" name="nivel_desliga" type="number" min="60" max="97" value="{{ ag.nivel_desliga }}" {% if perfil not in ('tecnico','coordenacao') %}disabled{% endif %}>
+  <fieldset>
+    <legend>Agenda automática</legend>
+    <input type="radio" id="ativo-sim" name="ativo" value="sim" {% if ag.ativo %}checked{% endif %}><label for="ativo-sim" class="inline">Ligada</label>
+    <input type="radio" id="ativo-nao" name="ativo" value="nao" {% if not ag.ativo %}checked{% endif %}><label for="ativo-nao" class="inline">Desligada (só coordenação)</label>
+  </fieldset>
+  {% if perfil in ('tecnico','coordenacao') %}<button type="submit">Salvar</button>{% endif %}
+</form>
+{% endblock %}

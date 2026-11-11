@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block titulo %}Erro{% endblock %}
+{% block conteudo %}
+<h1>Ops</h1>
+<p class="aviso erro" role="alert">{{ msg }}</p>
+<p><a href="{{ url_for('inicio') }}">Voltar para o início</a></p>
+{% endblock %}
